@@ -30,7 +30,7 @@ public class CachedFingerPrint {
         return currentRegIndex == 3;
     }
 
-    public String getPrisonCode() {
+    public String getIdentityCode() {
         return prisonCode;
     }
 
@@ -40,6 +40,10 @@ public class CachedFingerPrint {
 
     public String getIdentity() {
         return identity;
+    }
+
+    public boolean isIdentityValidate(){
+        return this.identity.equals("police") || this.identity.equals("prison");
     }
 
     public void setIdentity(String identity) {

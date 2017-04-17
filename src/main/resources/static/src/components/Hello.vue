@@ -1,10 +1,6 @@
 <template>
   <div id="hello">
-    <img src="http://vuejs.org/images/logo.png">
-    <h1>{{ msg }}</h1>
-    <h2>Essential Links</h2>
-
-    <h2>Ecosystem</h2>
+    <h2>已扫描的指纹</h2>
     <ul>
       <li v-for="imgSrc in imgs"> <img :src="imgSrc"></li>
     </ul>
@@ -13,10 +9,9 @@
 
 <script>
 export default {
-  name: 'hello',
+  name: 'finger-collecting',
   data () {
     return {
-      msg: 'Welcome to Your Vue.js App',
       imgs:[],
       websocket: ''
     }
@@ -30,7 +25,9 @@ export default {
     this.websocket.onmessage = (msg) => {
       console.info("recieved!");
       console.info(msg.data);
-      this.imgs.push(msg.data);
+      if(this.imgs.length < 3){
+          this.imgs.push(msg.data);
+      }
     }
   }
 }

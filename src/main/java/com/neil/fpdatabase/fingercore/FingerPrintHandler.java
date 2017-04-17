@@ -4,6 +4,9 @@ import com.zkteco.biometric.FingerprintSensor;
 import com.zkteco.biometric.ZKFPService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -13,8 +16,14 @@ import java.util.Map;
 /**
  * Created by nhu on 4/17/2017.
  * pool to return stored finger print
+ * Since this class need to contains status
+ * have to put static on variable
  */
+@Component
 public class FingerPrintHandler {
+
+    @Value("${file.location}")
+    private static String fileLocation;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FingerPrintHandler.class);
 
@@ -50,36 +59,52 @@ public class FingerPrintHandler {
             LOGGER.info("found:" + index);
             return;
         }
+        if(currentRegIndex >= 3){
+            return;
+        }
         System.arraycopy(reg, 0, currentRegistering.getImg(currentRegIndex), 0, 2048);
         currentRegIndex++;
-        if (currentRegIndex == 3) {
-            int[] _retLen = new int[1];
-            _retLen[0] = 2048;
-            int ret;
-            byte[] regTemp = new byte[_retLen[0]];
-
-            ret = ZKFPService.GenRegFPTemplate(currentRegistering.getImg(0),
-                    currentRegistering.getImg(1),
-                    currentRegistering.getImg(2), regTemp, _retLen);
-            if (ret == 0) {
-                ret = ZKFPService.DBAdd(currentFingerIndex, regTemp);
-                if(ret == 0){
-                    cachePool.put(currentRegIndex, currentRegistering);
-                    currentRegIndex = 0;
-                    currentRegistering = new CachedFingerPrint();
-                    currentFingerIndex++;
-                }
+        if (hasRegisterIdentity() ) {
+            if(currentRegIndex == 3) {
+                doRegister();
             }
         }
     }
 
+    private void doRegister() {
+        int[] _retLen = new int[1];
+        _retLen[0] = 2048;
+        int ret;
+        byte[] regTemp = new byte[_retLen[0]];
 
-    public void setCurrentPrisonCode(String code) {
-        currentRegistering.setPrisonCode(code);
+        ret = ZKFPService.GenRegFPTemplate(currentRegistering.getImg(0),
+                currentRegistering.getImg(1),
+                currentRegistering.getImg(2), regTemp, _retLen);
+        if (ret == 0) {
+            ret = ZKFPService.DBAdd(currentFingerIndex, regTemp);
+            if (ret == 0) {
+                cachePool.put(currentRegIndex, currentRegistering);
+                renameFingerPrintPic();
+                currentRegIndex = 0;
+                currentRegistering = new CachedFingerPrint();
+                currentFingerIndex++;
+            }
+        }
+    }
+
+    private void renameFingerPrintPic() {
+
+
+    }
+
+    private boolean hasRegisterIdentity() {
+        return currentRegistering.getIdentity().length() > 0 &&
+                currentRegistering.isIdentityValidate() &&
+                currentRegistering.getIdentityCode().length() > 0;
     }
 
     public void writeBitmap(byte[] imageBuf, int nWidth, int nHeight) throws IOException {
-        FileOutputStream fos = new FileOutputStream("D:\\project\\fpdatabase\\src\\main\\resources\\static\\img\\finger" + currentRegIndex + ".png");
+        FileOutputStream fos = new FileOutputStream(fileLocation + "/finger" + currentRegIndex + ".png");
         java.io.DataOutputStream dos = new java.io.DataOutputStream(fos);
 
         int bfType = 0x424d; // 位图文件类型（0—1字节）
@@ -139,6 +164,14 @@ public class FingerPrintHandler {
         byte b1 = (byte) (((data) << 24) >> 24);
         byte[] bytes = {b1, b2, b3, b4};
         return bytes;
+    }
+
+    public void setCurrentRegisteringCode(String code,String identity){
+        currentRegistering.setPrisonCode(code);
+        currentRegistering.setIdentity(identity );
+        if(currentRegIndex == 3){
+            doRegister();
+        }
     }
 
 }
