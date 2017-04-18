@@ -4,6 +4,10 @@
 import Vue from 'vue'
 import App from './App.vue'
 
+window.jQuery =require("jquery")
+require("bootstrap")
+window._ = require('lodash');
+
 new Vue({ // eslint-disable-line no-new
   el: '#app',
   render: (h) => h(App)

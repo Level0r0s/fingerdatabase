@@ -4,6 +4,7 @@ import com.zkteco.biometric.FingerprintSensor;
 import com.zkteco.biometric.FingerprintSensorErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
@@ -14,13 +15,16 @@ import javax.annotation.PostConstruct;
  * component that accept the finger print
  */
 @Component
-public class AcceptFingerPrint {
+public class FingerPrintConfig {
 
     private FingerprintSensor fingerprintSensor = new FingerprintSensor();
-    private static final Logger LOGGER = LoggerFactory.getLogger(AcceptFingerPrint.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(FingerPrintConfig.class);
 
     public static int width = 0;
     public static int height = 0;
+
+    @Value("${file.location}")
+    private String fileLocation;
 
     @PostConstruct
     public void startFingerAcceptor() {
@@ -57,7 +61,9 @@ public class AcceptFingerPrint {
 
     @Bean
     FingerPrintHandler getHandler() {
-        return new FingerPrintHandler(fingerprintSensor);
+        FingerPrintHandler handler =  new FingerPrintHandler(fingerprintSensor);
+        handler.setFileLocation(fileLocation);
+        return handler;
     }
 
 }

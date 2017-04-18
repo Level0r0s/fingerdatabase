@@ -1,14 +1,11 @@
 package com.neil.fpdatabase.fingercore;
 
-import com.neil.fpdatabase.controller.FingerPrintRecognitionResultHandler;
+import com.neil.fpdatabase.controller.FingerPrintIdentityHandler;
+import com.neil.fpdatabase.controller.FingerPrintRegisterHandler;
 import com.zkteco.biometric.FingerprintCaptureListener;
-import com.zkteco.biometric.FingerprintSensor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import java.io.IOException;
 
 /**
  * Created by nhu on 4/17/2017.
@@ -20,17 +17,19 @@ public class FingerAcceptorListener implements FingerprintCaptureListener {
 
     private static FingerPrintHandler handler;
 
-    private static FingerPrintRecognitionResultHandler fingerPrintRecognitionResultHandler;
+    private static FingerPrintRegisterHandler fingerPrintRegisterHandler;
+
+    private static FingerPrintIdentityHandler fingerPrintIdentityHandler;
 
     @Override
     public void captureOK(byte[] bytes) {
         LOGGER.info("capturing data.");
         try {
-            handler.writeToPic(bytes);
-            fingerPrintRecognitionResultHandler.sendImage("img/finger"+ FingerPrintHandler.currentRegIndex +".png");
+            handler.preparePic(bytes);
         } catch (Exception e) {
             LOGGER.error("error during sending capture:", e);
         }
+
     }
 
     @Override
@@ -41,7 +40,21 @@ public class FingerAcceptorListener implements FingerprintCaptureListener {
     @Override
     public void extractOK(byte[] bytes) {
         LOGGER.info("extracting data.");
-        handler.handleRegister(bytes);
+        try {
+            CachedFingerPrint cachedFingerPrint = handler.handleScan(bytes);
+            if(cachedFingerPrint != null){
+                //find matching
+                fingerPrintIdentityHandler.sendIdentity(cachedFingerPrint.getIdentityCode(),
+                        cachedFingerPrint.getIdentity());
+            }else{
+                //registering
+                handler.writeToPic();
+                fingerPrintRegisterHandler.sendImage("img/finger" + FingerPrintHandler.currentRegIndex + ".png");
+            }
+        } catch (Exception o) {
+            LOGGER.error("unable to register due to ", o);
+        }
+
     }
 
     @Autowired
@@ -50,7 +63,12 @@ public class FingerAcceptorListener implements FingerprintCaptureListener {
     }
 
     @Autowired
-    public void setFingerPrintRecognitionResultHandler(FingerPrintRecognitionResultHandler fingerPrintRecognitionResultHandler) {
-        this.fingerPrintRecognitionResultHandler = fingerPrintRecognitionResultHandler;
+    public void setFingerPrintRecognitionResultHandler(FingerPrintRegisterHandler fingerPrintRegisterHandler) {
+        this.fingerPrintRegisterHandler = fingerPrintRegisterHandler;
+    }
+
+    @Autowired
+    public void setFingerPrintIdentityHandler(FingerPrintIdentityHandler fingerPrintIdentityHandler) {
+        this.fingerPrintIdentityHandler = fingerPrintIdentityHandler;
     }
 }

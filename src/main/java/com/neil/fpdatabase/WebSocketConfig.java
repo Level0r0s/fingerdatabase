@@ -1,6 +1,7 @@
 package com.neil.fpdatabase;
 
-import com.neil.fpdatabase.controller.FingerPrintRecognitionResultHandler;
+import com.neil.fpdatabase.controller.FingerPrintIdentityHandler;
+import com.neil.fpdatabase.controller.FingerPrintRegisterHandler;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -22,12 +23,18 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(myHandler(), "/finger").setAllowedOrigins("*");
+        registry.addHandler(registerHandler(), "/finger").setAllowedOrigins("*");
+        registry.addHandler(identityHandler(), "/identity").setAllowedOrigins("*");
     }
 
     @Bean
-    public WebSocketHandler myHandler() {
-        return new FingerPrintRecognitionResultHandler();
+    public FingerPrintRegisterHandler registerHandler() {
+        return new FingerPrintRegisterHandler();
+    }
+
+    @Bean
+    public FingerPrintIdentityHandler identityHandler(){
+        return new FingerPrintIdentityHandler();
     }
 
     public static void main(String[] args){

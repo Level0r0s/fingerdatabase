@@ -5,9 +5,9 @@ import com.zkteco.biometric.ZKFPService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
@@ -19,24 +19,31 @@ import java.util.Map;
  * Since this class need to contains status
  * have to put static on variable
  */
-@Component
 public class FingerPrintHandler {
 
-    @Value("${file.location}")
     private static String fileLocation;
+
+    private static MongoTemplate _mongoTemplate;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FingerPrintHandler.class);
 
     private Map<Integer, CachedFingerPrint> cachePool = new HashMap<>();
     private static int currentFingerIndex = 1;
-    public static int currentRegIndex = 0;
+    public static Integer currentRegIndex = 0;
+    private static byte[] currentPic;
     private static CachedFingerPrint currentRegistering = new CachedFingerPrint();
     private FingerprintSensor fingerprintSensor;
+
+    public FingerPrintHandler(){}
 
     public FingerPrintHandler(FingerprintSensor sensor) {
         this.fingerprintSensor = sensor;
     }
 
+    @Autowired
+    public void setMongoTemplate(MongoTemplate mongoTemplate){
+        _mongoTemplate = mongoTemplate;
+    }
 
     private int getFingerIndex(byte[] content) {
         int[] fid = new int[1];
@@ -48,30 +55,41 @@ public class FingerPrintHandler {
         return -1;
     }
 
-    public void writeToPic(byte[] currentFinger) throws IOException {
-        //haven't register
-        writeBitmap(currentFinger, AcceptFingerPrint.width, AcceptFingerPrint.height);
+    public void preparePic(byte[] pic){
+        currentPic = pic;
     }
 
-    public void handleRegister(byte[] reg) {
-        int index = getFingerIndex(reg);
-        if (index != -1) {
-            LOGGER.info("found:" + index);
+    public void writeToPic() throws IOException {
+        if (currentRegIndex > 3) {
+            //do nothing
             return;
         }
-        if(currentRegIndex >= 3){
-            return;
-        }
-        System.arraycopy(reg, 0, currentRegistering.getImg(currentRegIndex), 0, 2048);
-        currentRegIndex++;
-        if (hasRegisterIdentity() ) {
-            if(currentRegIndex == 3) {
-                doRegister();
+        //haven't register
+        writeBitmap(currentPic, FingerPrintConfig.width, FingerPrintConfig.height);
+    }
+
+    public CachedFingerPrint handleScan(byte[] reg) throws IOException {
+        synchronized (currentRegIndex) {
+            int index = getFingerIndex(reg);
+            if (index != -1) {
+                LOGGER.info("found:" + index);
+                return cachePool.get(index);
+            }
+            if (currentRegIndex >= 3) {
+                return null;
+            }
+            System.arraycopy(reg, 0, currentRegistering.getImg(currentRegIndex), 0, 2048);
+            currentRegIndex++;
+            if (hasRegisterIdentity()) {
+                if (currentRegIndex == 3) {
+                    doRegister();
+                }
             }
         }
+        return null;
     }
 
-    private void doRegister() {
+    private void doRegister() throws IOException {
         int[] _retLen = new int[1];
         _retLen[0] = 2048;
         int ret;
@@ -83,18 +101,27 @@ public class FingerPrintHandler {
         if (ret == 0) {
             ret = ZKFPService.DBAdd(currentFingerIndex, regTemp);
             if (ret == 0) {
-                cachePool.put(currentRegIndex, currentRegistering);
+                cachePool.put(currentFingerIndex, currentRegistering);
                 renameFingerPrintPic();
-                currentRegIndex = 0;
-                currentRegistering = new CachedFingerPrint();
                 currentFingerIndex++;
+                this.reset();
             }
         }
     }
 
-    private void renameFingerPrintPic() {
-
-
+    private void renameFingerPrintPic() throws IOException {
+        String fullPath = fileLocation + "/" + currentRegistering.getIdentity() + "/";
+        for(int i = 1;i < 4 ;i ++ ){
+            File file = new File(fileLocation + "/finger" + i + ".png");
+            File toFile = new File(fullPath + "/" +currentRegistering.getIdentityCode() + "-" + i + ".png");
+            if(toFile.exists()){
+                throw new IOException("rename failed, already existed!");
+            }
+            boolean success = file.renameTo(toFile);
+            if(!success){
+                throw new IOException("rename failed, unknown reason!");
+            }
+        }
     }
 
     private boolean hasRegisterIdentity() {
@@ -104,7 +131,11 @@ public class FingerPrintHandler {
     }
 
     public void writeBitmap(byte[] imageBuf, int nWidth, int nHeight) throws IOException {
-        FileOutputStream fos = new FileOutputStream(fileLocation + "/finger" + currentRegIndex + ".png");
+        String fileName;
+        synchronized (currentRegIndex) {
+            fileName = fileLocation + "/finger" + currentRegIndex + ".png";
+        }
+        FileOutputStream fos = new FileOutputStream(fileName);
         java.io.DataOutputStream dos = new java.io.DataOutputStream(fos);
 
         int bfType = 0x424d; // 位图文件类型（0—1字节）
@@ -166,12 +197,20 @@ public class FingerPrintHandler {
         return bytes;
     }
 
-    public void setCurrentRegisteringCode(String code,String identity){
+    public void setCurrentRegisteringCode(String code,String identity) throws IOException {
         currentRegistering.setPrisonCode(code);
-        currentRegistering.setIdentity(identity );
+        currentRegistering.setIdentity(identity);
         if(currentRegIndex == 3){
             doRegister();
         }
     }
 
+    public void setFileLocation(String fileLocation) {
+        FingerPrintHandler.fileLocation = fileLocation;
+    }
+
+    public void reset(){
+        currentRegIndex = 0;
+        currentRegistering = new CachedFingerPrint();
+    }
 }

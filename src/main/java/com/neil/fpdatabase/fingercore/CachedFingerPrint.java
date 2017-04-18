@@ -6,25 +6,10 @@ package com.neil.fpdatabase.fingercore;
  */
 public class CachedFingerPrint {
 
-    private int index;
     private  byte[][] regTempArray = new byte[3][2048];
     private int currentRegIndex = 0;
-    private String prisonCode;
-    private String identity;
-
-
-    public int getIndex() {
-        return index;
-    }
-
-    public void setIndex(int index) {
-        this.index = index;
-    }
-
-    public void registering(byte[] img){
-        regTempArray[currentRegIndex] = img;
-        currentRegIndex++;
-    }
+    private String prisonCode = "";
+    private String identity ="";
 
     public Boolean isReady(){
         return currentRegIndex == 3;
