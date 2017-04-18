@@ -53,6 +53,7 @@ public class FingerAcceptorListener implements FingerprintCaptureListener {
             }
         } catch (Exception o) {
             LOGGER.error("unable to register due to ", o);
+            FingerPrintHandler.currentRegIndex--;
         }
 
     }

@@ -1,5 +1,7 @@
 package com.neil.fpdatabase.fingercore;
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
 import com.zkteco.biometric.FingerprintSensor;
 import com.zkteco.biometric.ZKFPService;
 import org.slf4j.Logger;
@@ -10,8 +12,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Created by nhu on 4/17/2017.
@@ -21,23 +21,29 @@ import java.util.Map;
  */
 public class FingerPrintHandler {
 
-    private static String fileLocation;
-
-    private static MongoTemplate _mongoTemplate;
-
     private static final Logger LOGGER = LoggerFactory.getLogger(FingerPrintHandler.class);
-
-    private Map<Integer, CachedFingerPrint> cachePool = new HashMap<>();
-    private static int currentFingerIndex = 1;
     public static Integer currentRegIndex = 0;
+    private static String fileLocation;
+    private static MongoTemplate _mongoTemplate;
+    private static int currentFingerIndex = 1;
     private static byte[] currentPic;
     private static CachedFingerPrint currentRegistering = new CachedFingerPrint();
+    private CachedFingerPrintPool pool = new CachedFingerPrintPool();
     private FingerprintSensor fingerprintSensor;
 
     public FingerPrintHandler(){}
 
     public FingerPrintHandler(FingerprintSensor sensor) {
         this.fingerprintSensor = sensor;
+    }
+
+    public static byte[] changeByte(int data) {
+        byte b4 = (byte) ((data) >> 24);
+        byte b3 = (byte) (((data) << 8) >> 24);
+        byte b2 = (byte) (((data) << 16) >> 24);
+        byte b1 = (byte) (((data) << 24) >> 24);
+        byte[] bytes = {b1, b2, b3, b4};
+        return bytes;
     }
 
     @Autowired
@@ -73,7 +79,7 @@ public class FingerPrintHandler {
             int index = getFingerIndex(reg);
             if (index != -1) {
                 LOGGER.info("found:" + index);
-                return cachePool.get(index);
+                return pool.get(index);
             }
             if (currentRegIndex >= 3) {
                 return null;
@@ -101,12 +107,24 @@ public class FingerPrintHandler {
         if (ret == 0) {
             ret = ZKFPService.DBAdd(currentFingerIndex, regTemp);
             if (ret == 0) {
-                cachePool.put(currentFingerIndex, currentRegistering);
+                pool.set(currentFingerIndex, currentRegistering);
                 renameFingerPrintPic();
+                saveToDatabase(regTemp, currentRegistering);
                 currentFingerIndex++;
                 this.reset();
             }
         }
+    }
+
+    private void saveToDatabase(byte[] reg, CachedFingerPrint cachedFingerPrint) {
+        DBObject fingerPrint = new BasicDBObject();
+        fingerPrint.put("temp1", cachedFingerPrint.getImg(0));
+        fingerPrint.put("temp2", cachedFingerPrint.getImg(1));
+        fingerPrint.put("temp3", cachedFingerPrint.getImg(2));
+        fingerPrint.put("generated", reg);
+        fingerPrint.put("code", cachedFingerPrint.getIdentityCode());
+        fingerPrint.put("identity", cachedFingerPrint.getIdentity());
+        _mongoTemplate.getCollection(FingerPrintConfig.COLLECTION_NAME).save(fingerPrint);
     }
 
     private void renameFingerPrintPic() throws IOException {
@@ -186,15 +204,6 @@ public class FingerPrintHandler {
         dos.flush();
         dos.close();
         fos.close();
-    }
-
-    public static byte[] changeByte(int data) {
-        byte b4 = (byte) ((data) >> 24);
-        byte b3 = (byte) (((data) << 8) >> 24);
-        byte b2 = (byte) (((data) << 16) >> 24);
-        byte b1 = (byte) (((data) << 24) >> 24);
-        byte[] bytes = {b1, b2, b3, b4};
-        return bytes;
     }
 
     public void setCurrentRegisteringCode(String code,String identity) throws IOException {
